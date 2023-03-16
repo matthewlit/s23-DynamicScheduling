@@ -1,7 +1,10 @@
+import sys
+
 #Main method
 def main():
-    #Read input 'test.in'
-    num_reg, issue_width, instructions = read_file('test.in')
+    #Read input file
+    input = sys.argv[1]
+    num_reg, issue_width, instructions = read_file(input)
 
     #Write output to 'out.txt'
     output = open('out.txt', 'w')
