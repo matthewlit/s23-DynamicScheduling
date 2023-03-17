@@ -5,6 +5,7 @@ map_table = [-1]*32
 ready_table = []
 free_list = []
 reorder_buffer = []
+load_store_queue = []
 instructions = []
 
 #Global Variables 
@@ -60,6 +61,7 @@ def read_file(file):
     global num_reg
     global issue_width
     global ready_table
+    global free_list
     global instructions
 
     with open(file, 'r') as input:
@@ -69,6 +71,7 @@ def read_file(file):
 
         #Populates data structures as needed
         ready_table = [0]*num_reg
+        free_list = [*range(num_reg)]
 
         # Parse each instruction and add it to the instructions list
         for line in input:
@@ -121,17 +124,21 @@ def Issue():
     return
 
 #Dispatch stage
-#TODO: ADD STALLS
 def Dispatch():
     global issue_width
     global cycle
     global rename
     global dispatch
+    global reorder_buffer
+    global load_store_queue
 
-    #Add instructions to dispatch queue from rename queue
+    #Add instructions to dispatch queue, reorder buffer, and load store queue from rename queue
     for x in range(0, min(issue_width, len(rename))):
         rename[0][4][3] = cycle
-        dispatch.append(rename.pop(0))
+        instruction = rename.pop(0)
+        dispatch.append(instruction)
+        reorder_buffer.append(instruction)
+        load_store_queue.append(instruction)
     return
 
 #Rename stage 
@@ -154,11 +161,14 @@ def Decode():
     global cycle
     global fetch
     global decode
+    global free_list
 
-    #Add instructions to decode queue from fetch queue
-    for x in range(0, min(issue_width, len(fetch))):
-        fetch[0][4][1] = cycle
-        decode.append(fetch.pop(0))
+    #If available architected register
+    if len(free_list)>0:
+        #Add instructions to decode queue from fetch queue
+        for x in range(0, min(issue_width, len(fetch))):
+            fetch[0][4][1] = cycle
+            decode.append(fetch.pop(0))
     return
 
 #Fetch stage
