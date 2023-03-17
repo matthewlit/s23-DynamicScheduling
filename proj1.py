@@ -37,7 +37,7 @@ def main():
 
     #Pipeline
     icount = len(instructions)
-    while committed<=icount:
+    while committed<icount:
         Commit()
         WB()
         Issue()
@@ -78,6 +78,7 @@ def read_file(file):
 
     return
 
+#Commit Stage
 def Commit():
     global committed
     global issue_width
@@ -85,25 +86,69 @@ def Commit():
     global write_back
     global commit
 
-    #Add instructions to decode queue from fetch queue
+    #Add instructions to commit queue from write back queue
     for x in range(0, min(issue_width, len(write_back))):
         write_back[0][4][6] = cycle
         commit.append(write_back.pop(0))
         committed+=1
     return
 
+#Write Back stage
 def WB():
+    global issue_width
+    global cycle
+    global issue
+    global write_back
+
+    #Add instructions to rename queue from decode queue
+    for x in range(0, min(issue_width, len(issue))):
+        issue[0][4][5] = cycle
+        write_back.append(issue.pop(0))
     return
 
+#Issue stage
+#TODO: ADD STALLS
 def Issue():
+    global issue_width
+    global cycle
+    global issue
+    global dispatch
+
+    #Add instructions to rename queue from decode queue
+    for x in range(0, min(issue_width, len(dispatch))):
+        dispatch[0][4][4] = cycle
+        issue.append(dispatch.pop(0))
     return
 
+#Dispatch stage
+#TODO: ADD STALLS
 def Dispatch():
+    global issue_width
+    global cycle
+    global rename
+    global dispatch
+
+    #Add instructions to rename queue from decode queue
+    for x in range(0, min(issue_width, len(rename))):
+        rename[0][4][3] = cycle
+        dispatch.append(rename.pop(0))
     return
 
+#Rename stage 
+#TODO: ADD STALLS
 def Rename():
+    global issue_width
+    global cycle
+    global rename
+    global decode
+
+    #Add instructions to rename queue from decode queue
+    for x in range(0, min(issue_width, len(decode))):
+        decode[0][4][2] = cycle
+        rename.append(decode.pop(0))
     return
 
+#Decode stage
 def Decode():
     global issue_width
     global cycle
@@ -116,6 +161,7 @@ def Decode():
         decode.append(fetch.pop(0))
     return
 
+#Fetch stage
 def Fetch():
     global fetch_index
     global issue_width
