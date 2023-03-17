@@ -1,30 +1,11 @@
 import sys
 
 #Data Structures
-map_table = []
-ready_table = []
-free_list = []
-reorder_buffer = []
-load_store_queue = []
-instructions = []
-free = []
-
+map_table, ready_table, free_list, reorder_buffer, load_store_queue, instructions, free = [], [], [], [], [], [], []
 #Global Variables 
-num_reg = 0
-issue_width = 0 
-cycle = 0
-committed = 0
-fetch_index = 0
-icount = 0
-
+num_reg, issue_width, cycle, committed, fetch_index, icount = 0,0,0,0,0,0
 #Scheduling Queues
-fetch = []
-decode = []
-rename = []
-dispatch = []
-issue = []
-write_back = []
-commit = []
+fetch, decode, rename, dispatch, issue, write_back, commit = [], [], [], [], [], [], []
 
 #Main method
 def main():
@@ -54,7 +35,7 @@ def main():
 
         #Next cycle
         cycle+=1
-
+    
     #Write output to 'out.txt'
     open('out.txt', 'w').close
     output = open('out.txt', 'a')
@@ -106,7 +87,7 @@ def Commit():
     #Add instructions to commit queue from write back queue
     for x in range(0, min(issue_width, len(write_back))):
         write_back[0][4][6] = cycle
-        free.append(write_back[0][5])
+        if write_back[0][5]!=-1: free.append(write_back[0][5])
         commit.append(write_back.pop(0))
         committed+=1
     return
@@ -221,27 +202,43 @@ def mapped(instruction):
     else:
         reg2 = instruction[3]
 
-    #Over written registers
-    if reg1 in map_table and instruction[0]!='S':
+    #Check if reg1 is mapped
+    if reg1 not in map_table:
+        arch_reg = map_reg(reg1)
+        if arch_reg!=-1: 
+            map_table[arch_reg] = reg1
+            instruction[1] = arch_reg
+        else: return -1
+    elif reg1 in map_table and instruction[0]!='S':
         instruction[5] = map_table.index(reg1)
         map_table[map_table.index(reg1)] = -1
         arch_reg = map_reg(reg1)
-        if arch_reg!=-1: map_table[arch_reg] = reg1
+        if arch_reg!=-1:
+            map_table[arch_reg] = reg1
+            instruction[1] = arch_reg
         else: return -1
 
-    #Check if all registers in map table
-    if reg1 not in map_table:
-        arch_reg = map_reg(reg1)
-        if arch_reg!=-1: map_table[arch_reg] = reg1
-        else: return -1
+    #Check if reg2 is mapped
     if reg2 not in map_table:
         arch_reg = map_reg(reg2)
-        if arch_reg!=-1: map_table[arch_reg] = reg2
+        if arch_reg!=-1: 
+            map_table[arch_reg] = reg2
+            if instruction[0] == 'I': instruction[2] = arch_reg
+            else: instruction[3] = arch_reg
         else: return -1
+    else:
+        if instruction[0] == 'I': instruction[2] = map_table.index(reg2)
+        else: instruction[3] = map_table.index(reg2)
+
+    #Check if reg3 is mapped
     if reg3!=-1 and reg3 not in map_table:
         arch_reg = map_reg(reg3)
-        if arch_reg!=-1: map_table[arch_reg] = reg3
+        if arch_reg!=-1: 
+            map_table[arch_reg] = reg3
+            instruction[3] = arch_reg
         else: return -1
+    elif reg3!=-1 and reg3 in map_table:
+        instruction[3] = map_table.index(reg3)
 
     #All registers mapped
     return 1
