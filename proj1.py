@@ -80,8 +80,16 @@ def read_file(file):
 
 def Commit():
     global committed
+    global issue_width
+    global cycle
+    global write_back
+    global commit
 
-    committed+=1
+    #Add instructions to decode queue from fetch queue
+    for x in range(0, min(issue_width, len(write_back))):
+        write_back[0][4][6] = cycle
+        commit.append(write_back.pop(0))
+        committed+=1
     return
 
 def WB():
