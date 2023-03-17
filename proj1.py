@@ -11,7 +11,7 @@ instructions = []
 num_reg = 0
 issue_width = 0 
 cycle = 0
-commited = 0
+committed = 0
 fetch_index = 0
 icount = 0
 
@@ -27,7 +27,7 @@ commit = []
 #Main method
 def main():
     global icount
-    global commited
+    global committed
     global instructions
     global cycle
 
@@ -37,7 +37,7 @@ def main():
 
     #Pipeline
     icount = len(instructions)
-    while commited<icount:
+    while committed<=icount:
         Commit()
         WB()
         Issue()
@@ -57,6 +57,11 @@ def main():
 
 #Reads input file
 def read_file(file):
+    global num_reg
+    global issue_width
+    global ready_table
+    global instructions
+
     with open(file, 'r') as input:
 
         # Reads the number of physical registers and the issue width
@@ -74,9 +79,9 @@ def read_file(file):
     return
 
 def Commit():
-    global commited
+    global committed
 
-    commited+=1
+    committed+=1
     return
 
 def WB():
@@ -92,11 +97,30 @@ def Rename():
     return
 
 def Decode():
+    global issue_width
+    global cycle
+    global fetch
+    global decode
+
+    #Add instructions to decode queue from fetch queue
+    for x in range(0, min(issue_width, len(fetch))):
+        fetch[0][4][1] = cycle
+        decode.append(fetch.pop(0))
     return
 
 def Fetch():
     global fetch_index
+    global issue_width
+    global cycle
+    global fetch
+    global instructions
 
+    #Add instructions to fetch queue
+    for x in range(fetch_index, min(fetch_index+issue_width, len(instructions))):
+        instructions[x][4][0] = cycle
+        fetch.append(instructions[x])
+
+    #Update fetch index
     fetch_index+=issue_width
     return
 
