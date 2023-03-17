@@ -100,7 +100,7 @@ def WB():
     global issue
     global write_back
 
-    #Add instructions to rename queue from decode queue
+    #Add instructions to write back queue from issue queue
     for x in range(0, min(issue_width, len(issue))):
         issue[0][4][5] = cycle
         write_back.append(issue.pop(0))
@@ -114,7 +114,7 @@ def Issue():
     global issue
     global dispatch
 
-    #Add instructions to rename queue from decode queue
+    #Add instructions to issue queue from dispatch queue
     for x in range(0, min(issue_width, len(dispatch))):
         dispatch[0][4][4] = cycle
         issue.append(dispatch.pop(0))
@@ -128,7 +128,7 @@ def Dispatch():
     global rename
     global dispatch
 
-    #Add instructions to rename queue from decode queue
+    #Add instructions to dispatch queue from rename queue
     for x in range(0, min(issue_width, len(rename))):
         rename[0][4][3] = cycle
         dispatch.append(rename.pop(0))
