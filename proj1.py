@@ -1,12 +1,13 @@
 import sys
 
 #Data Structures
-map_table = [-1]*32
+map_table = []
 ready_table = []
 free_list = []
 reorder_buffer = []
 load_store_queue = []
 instructions = []
+free = []
 
 #Global Variables 
 num_reg = 0
@@ -46,6 +47,12 @@ def main():
         Rename()
         Decode()
         Fetch()
+
+        #Free over-written registers
+        for reg in free:
+            free_list.append(reg)
+
+        #Next cycle
         cycle+=1
 
     #Write output to 'out.txt'
@@ -63,6 +70,7 @@ def read_file(file):
     global ready_table
     global free_list
     global instructions
+    global map_table
 
     with open(file, 'r') as input:
 
@@ -71,12 +79,17 @@ def read_file(file):
 
         #Populates data structures as needed
         ready_table = [0]*num_reg
-        free_list = [*range(num_reg)]
+        free_list = [*range(32,num_reg,1)]
+        for x in range(32):
+            map_table.append(str(x))
+        for x in range(num_reg-32):
+            map_table.append('-1')
 
         # Parse each instruction and add it to the instructions list
         for line in input:
             instruction = line.strip().split(',')
             instruction.append([-1]*7)
+            instruction.append(-1)
             instructions.append(instruction)
 
     return
@@ -88,10 +101,12 @@ def Commit():
     global cycle
     global write_back
     global commit
+    global free
 
     #Add instructions to commit queue from write back queue
     for x in range(0, min(issue_width, len(write_back))):
         write_back[0][4][6] = cycle
+        free.append(write_back[0][5])
         commit.append(write_back.pop(0))
         committed+=1
     return
@@ -142,7 +157,6 @@ def Dispatch():
     return
 
 #Rename stage 
-#TODO: ADD STALLS
 def Rename():
     global issue_width
     global cycle
@@ -150,9 +164,15 @@ def Rename():
     global decode
 
     #Add instructions to rename queue from decode queue
-    for x in range(0, min(issue_width, len(decode))):
-        decode[0][4][2] = cycle
-        rename.append(decode.pop(0))
+    issued = 0
+    index = 0
+    while issued<issue_width and index != len(decode):
+        if mapped(decode[index])!=-1:
+            decode[index][4][2] = cycle
+            rename.append(decode.pop(index))
+            issued+=1
+        #Stall
+        else: index+=1
     return
 
 #Decode stage
@@ -161,14 +181,11 @@ def Decode():
     global cycle
     global fetch
     global decode
-    global free_list
 
-    #If available architected register
-    if len(free_list)>0:
-        #Add instructions to decode queue from fetch queue
-        for x in range(0, min(issue_width, len(fetch))):
-            fetch[0][4][1] = cycle
-            decode.append(fetch.pop(0))
+    #Add instructions to decode queue from fetch queue
+    for x in range(0, min(issue_width, len(fetch))):
+        fetch[0][4][1] = cycle
+        decode.append(fetch.pop(0))
     return
 
 #Fetch stage
@@ -187,6 +204,58 @@ def Fetch():
     #Update fetch index
     fetch_index+=issue_width
     return
+
+#Check if registers are mapped
+def mapped(instruction):
+    global map_table
+
+    #Get phy register numbers
+    reg1 = instruction[1]
+    reg2 = -1
+    reg3 = -1
+    if instruction[0] == 'R':
+        reg2 = instruction[2]
+        reg3 = instruction[3]
+    elif instruction[0] == 'I':
+        reg2 = instruction[2]
+    else:
+        reg2 = instruction[3]
+
+    #Over written registers
+    if reg1 in map_table and instruction[0]!='S':
+        instruction[5] = map_table.index(reg1)
+        map_table[map_table.index(reg1)] = -1
+        arch_reg = map_reg(reg1)
+        if arch_reg!=-1: map_table[arch_reg] = reg1
+        else: return -1
+
+    #Check if all registers in map table
+    if reg1 not in map_table:
+        arch_reg = map_reg(reg1)
+        if arch_reg!=-1: map_table[arch_reg] = reg1
+        else: return -1
+    if reg2 not in map_table:
+        arch_reg = map_reg(reg2)
+        if arch_reg!=-1: map_table[arch_reg] = reg2
+        else: return -1
+    if reg3!=-1 and reg3 not in map_table:
+        arch_reg = map_reg(reg3)
+        if arch_reg!=-1: map_table[arch_reg] = reg3
+        else: return -1
+
+    #All registers mapped
+    return 1
+
+
+#Map physical register to architected register
+def map_reg(phy_reg):
+    global free_list
+
+    if len(free_list)>0:
+        return free_list.pop(0)
+
+    #Could not be mapped
+    return -1
 
 #Calls main() on run
 if __name__ == '__main__':
