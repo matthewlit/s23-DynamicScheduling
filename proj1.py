@@ -14,6 +14,8 @@ def main():
     global instructions
     global cycle
     global issue
+    global free_list
+    global free
 
     #Read input file
     input = sys.argv[1]
@@ -22,7 +24,6 @@ def main():
     #Pipeline
     icount = len(instructions)
     while committed<icount:
-        print('\n' + str(cycle) + '\n')
         Commit()
         WB()
         Issue()
@@ -32,8 +33,9 @@ def main():
         Fetch()
 
         #Free over-written registers
-        for reg in free:
+        for x in range(len(free)):
             free_list.append(free.pop(0))
+
         #Set registers to ready
         for instruction in issue:
             ready_table[instruction[1]] = 1
@@ -217,8 +219,6 @@ def mapped(instruction):
     global map_table
     global free_list
 
-    print(str(instruction) + '\n' + str(free_list))
-
     #Get phy register numbers
     reg1 = instruction[1]
     reg2 = -1
@@ -278,8 +278,6 @@ def mapped(instruction):
     elif reg1 in map_table and instruction[0]=='S':
         instruction[1] = map_table.index(reg1)
 
-    print(str(instruction) + '\n' + str(free_list) + '\n')
-
     #All registers mapped
     return 1
 
@@ -287,8 +285,6 @@ def mapped(instruction):
 #Map physical register to architected register
 def get_reg():
     global free_list
-
-    print('Free: ' + str(free_list))
 
     if len(free_list)>0:
         return free_list.pop(0)
@@ -298,8 +294,6 @@ def get_reg():
 
 def ready(instruction):
     global ready_table
-
-    print(str(instruction) + '\n' + str(ready_table) + '\n')
 
     if instruction[0] == 'R':
         if ready_table[instruction[2]]==1 and ready_table[instruction[3]]==1: return 1
