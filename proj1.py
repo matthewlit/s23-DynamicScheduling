@@ -123,13 +123,20 @@ def Issue():
     #Add instructions to issue queue from dispatch queue
     issued = 0
     index = 0
+    store = 0
     while issued<issue_width and index != len(dispatch):
-        if ready(dispatch[index])!=-1:
-            dispatch[index][4][4] = cycle
-            issue.append(dispatch.pop(index))
-            issued+=1
-        #Stall
-        else: index+=1
+        if store==0 or (dispatch[index][0]!='L' and store==1):
+            if ready(dispatch[index])!=-1:
+                dispatch[index][4][4] = cycle
+                instruction = dispatch.pop(index)
+                issue.append(instruction)
+                if instruction[0]=='S':
+                    store = 1
+                issued+=1
+            #Stall
+            else: index+=1
+        else:
+            return
     return
 
 #Dispatch stage
