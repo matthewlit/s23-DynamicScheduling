@@ -13,6 +13,7 @@ def main():
     global committed
     global instructions
     global cycle
+    global issue
 
     #Read input file
     input = sys.argv[1]
@@ -21,6 +22,7 @@ def main():
     #Pipeline
     icount = len(instructions)
     while committed<icount:
+        print('\n' + str(cycle) + '\n')
         Commit()
         WB()
         Issue()
@@ -31,7 +33,10 @@ def main():
 
         #Free over-written registers
         for reg in free:
-            free_list.append(reg)
+            free_list.append(free.pop(0))
+        #Set registers to ready
+        for instruction in issue:
+            ready_table[instruction[1]] = 1
 
         #Next cycle
         cycle+=1
@@ -59,7 +64,7 @@ def read_file(file):
         num_reg, issue_width = map(int, input.readline().split(','))
 
         #Populates data structures as needed
-        ready_table = [0]*num_reg
+        ready_table = [1]*num_reg
         free_list = [*range(32,num_reg,1)]
         for x in range(32):
             map_table.append(str(x))
@@ -83,13 +88,15 @@ def Commit():
     global write_back
     global commit
     global free
+    global reorder_buffer
 
     #Add instructions to commit queue from write back queue
-    for x in range(0, min(issue_width, len(write_back))):
-        write_back[0][4][6] = cycle
-        if write_back[0][5]!=-1: free.append(write_back[0][5])
-        commit.append(write_back.pop(0))
-        committed+=1
+    for x in range(0, min(issue_width, len(reorder_buffer))):
+        if reorder_buffer[0] in write_back:
+            reorder_buffer[0][4][6] = cycle
+            if reorder_buffer[0][5]!=-1: free.append(reorder_buffer[0][5])
+            commit.append(reorder_buffer.pop(0))
+            committed+=1
     return
 
 #Write Back stage
@@ -106,17 +113,23 @@ def WB():
     return
 
 #Issue stage
-#TODO: ADD STALLS
 def Issue():
     global issue_width
     global cycle
     global issue
     global dispatch
+    global ready_table
 
     #Add instructions to issue queue from dispatch queue
-    for x in range(0, min(issue_width, len(dispatch))):
-        dispatch[0][4][4] = cycle
-        issue.append(dispatch.pop(0))
+    issued = 0
+    index = 0
+    while issued<issue_width and index != len(dispatch):
+        if ready(dispatch[index])!=-1:
+            dispatch[index][4][4] = cycle
+            issue.append(dispatch.pop(index))
+            issued+=1
+        #Stall
+        else: index+=1
     return
 
 #Dispatch stage
@@ -127,14 +140,20 @@ def Dispatch():
     global dispatch
     global reorder_buffer
     global load_store_queue
+    global ready_table
 
     #Add instructions to dispatch queue, reorder buffer, and load store queue from rename queue
     for x in range(0, min(issue_width, len(rename))):
         rename[0][4][3] = cycle
+
+        #Clear ready bit for destination
+        ready_table[rename[0][1]] = 0
+
         instruction = rename.pop(0)
         dispatch.append(instruction)
         reorder_buffer.append(instruction)
-        load_store_queue.append(instruction)
+        if instruction[0] == 'L' or instruction[0] == 'S':
+            load_store_queue.append(instruction)
     return
 
 #Rename stage 
@@ -153,7 +172,7 @@ def Rename():
             rename.append(decode.pop(index))
             issued+=1
         #Stall
-        else: index+=1
+        else: return
     return
 
 #Decode stage
@@ -189,6 +208,9 @@ def Fetch():
 #Check if registers are mapped
 def mapped(instruction):
     global map_table
+    global free_list
+
+    print(str(instruction) + '\n' + str(free_list))
 
     #Get phy register numbers
     reg1 = instruction[1]
@@ -202,37 +224,28 @@ def mapped(instruction):
     else:
         reg2 = instruction[3]
 
-    #Check if reg1 is mapped
-    if reg1 not in map_table:
-        arch_reg = map_reg(reg1)
-        if arch_reg!=-1: 
-            map_table[arch_reg] = reg1
-            instruction[1] = arch_reg
-        else: return -1
-    elif reg1 in map_table and instruction[0]!='S':
-        instruction[5] = map_table.index(reg1)
-        map_table[map_table.index(reg1)] = -1
-        arch_reg = map_reg(reg1)
-        if arch_reg!=-1:
-            map_table[arch_reg] = reg1
-            instruction[1] = arch_reg
-        else: return -1
+    #Check if can be mapped
+    num_to_be_mapped = 1
+    if reg2 not in map_table: num_to_be_mapped+=1
+    if reg3!=-1 and reg3 not in map_table: num_to_be_mapped+=1
+    if len(free_list)<num_to_be_mapped: return -1
 
     #Check if reg2 is mapped
     if reg2 not in map_table:
-        arch_reg = map_reg(reg2)
+        arch_reg = get_reg()
         if arch_reg!=-1: 
             map_table[arch_reg] = reg2
-            if instruction[0] == 'I': instruction[2] = arch_reg
+            if instruction[0] == 'I' or instruction[0] == 'R': instruction[2] = arch_reg
             else: instruction[3] = arch_reg
         else: return -1
     else:
         if instruction[0] == 'I': instruction[2] = map_table.index(reg2)
+        elif instruction[0] == 'R': instruction[2] = map_table.index(reg2)
         else: instruction[3] = map_table.index(reg2)
 
     #Check if reg3 is mapped
     if reg3!=-1 and reg3 not in map_table:
-        arch_reg = map_reg(reg3)
+        arch_reg = get_reg()
         if arch_reg!=-1: 
             map_table[arch_reg] = reg3
             instruction[3] = arch_reg
@@ -240,19 +253,59 @@ def mapped(instruction):
     elif reg3!=-1 and reg3 in map_table:
         instruction[3] = map_table.index(reg3)
 
+    #Check if reg1 is mapped
+    if reg1 not in map_table:
+        arch_reg = get_reg()
+        if arch_reg!=-1: 
+            map_table[arch_reg] = reg1
+            instruction[1] = arch_reg
+        else: return -1
+    elif reg1 in map_table and instruction[0]!='S':
+        instruction[5] = map_table.index(reg1)
+        map_table[map_table.index(reg1)] = -1
+        arch_reg = get_reg()
+        if arch_reg!=-1:
+            map_table[arch_reg] = reg1
+            instruction[1] = arch_reg
+        else: return -1
+    elif reg1 in map_table and instruction[0]=='S':
+        instruction[1] = map_table.index(reg1)
+
+    print(str(instruction) + '\n' + str(free_list) + '\n')
+
     #All registers mapped
     return 1
 
 
 #Map physical register to architected register
-def map_reg(phy_reg):
+def get_reg():
     global free_list
+
+    print('Free: ' + str(free_list))
 
     if len(free_list)>0:
         return free_list.pop(0)
 
     #Could not be mapped
     return -1
+
+def ready(instruction):
+    global ready_table
+
+    print(str(instruction) + '\n' + str(ready_table) + '\n')
+
+    if instruction[0] == 'R':
+        if ready_table[instruction[2]]==1 and ready_table[instruction[3]]==1: return 1
+        else: return -1
+    elif instruction[0] == 'I':
+        if ready_table[instruction[2]]==1: return 1
+        else: return -1
+    elif instruction[0] == 'S':
+        if ready_table[instruction[1]]==1 and ready_table[instruction[3]]==1: return 1
+        else: return -1
+    elif instruction[0] == 'L':
+        if ready_table[instruction[3]]==1: return 1
+        else: return -1
 
 #Calls main() on run
 if __name__ == '__main__':
